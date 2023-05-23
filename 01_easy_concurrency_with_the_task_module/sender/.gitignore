@@ -20,7 +20,7 @@ erl_crash.dump
 *.ez
 
 # Ignore package tarball (built via "mix hex.build").
-easy_concurrency_with_the_task_module-*.tar
+sender-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/

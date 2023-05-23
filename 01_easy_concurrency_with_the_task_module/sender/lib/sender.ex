@@ -1,6 +1,6 @@
-defmodule App do
+defmodule Sender do
   @moduledoc """
-  Documentation for `App`.
+  Documentation for `Sender`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule App do
 
   ## Examples
 
-      iex> App.hello()
+      iex> Sender.hello()
       :world
 
   """
