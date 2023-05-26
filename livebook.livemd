@@ -35,13 +35,17 @@ defmodule SendEmail do
     IO.puts("Email to #{email} sent")
     {:ok, "email_sent"}
   end
+
+  def error_call(email) do
+    raise "Oops, couldn't send email to #{email}!"
+  end
 end
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, SendEmail, <<70, 79, 82, 49, 0, 0, 9, ...>>, {:timeout_call, 1}}
+{:module, SendEmail, <<70, 79, 82, 49, 0, 0, 11, ...>>, {:error_call, 1}}
 ```
 
 Calling the previous function you can see that is syncronous (you have to wait the previous call finish to do the next). And this is not good for performance.
@@ -92,9 +96,9 @@ Task.async(fn -> SendEmail.call(email) end)
 ```
 %Task{
   mfa: {:erlang, :apply, 2},
-  owner: #PID<0.144.0>,
-  pid: #PID<0.802.0>,
-  ref: #Reference<0.595804607.637599745.35537>
+  owner: #PID<0.288.0>,
+  pid: #PID<0.304.0>,
+  ref: #Reference<0.147518370.849936391.193354>
 }
 ```
 
@@ -233,4 +237,36 @@ emails
 
 ```
 [exit: :timeout, exit: :timeout, exit: :timeout, exit: :timeout]
+```
+
+```elixir
+defmodule Livebook.Applicatiion do
+  use Application
+
+  @impl true
+  def start(_type, _args) do
+    children = [
+      {Task.Supervisor, name: Sender.EmailTaskSupervisor}
+    ]
+
+    opts = [
+      strategy: :one_for_one,
+      name: Sender.Supervisor
+    ]
+
+    Supervisor.start_link(children, opts)
+  end
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, Livebook.Applicatiion, <<70, 79, 82, 49, 0, 0, 8, ...>>, {:start, 2}}
+```
+
+```elixir
+Sender.EmailTaskSupervisor
+|> Task.Supervisor.async_stream_nolink(emails, &SendEmail.error_call/1)
+|> Enum.to_list()
 ```

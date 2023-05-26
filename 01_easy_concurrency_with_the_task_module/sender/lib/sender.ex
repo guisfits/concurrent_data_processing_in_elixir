@@ -1,18 +1,16 @@
 defmodule Sender do
-  @moduledoc """
-  Documentation for `Sender`.
-  """
+  def send_email("guisfits.bank@gmail.com" = email),
+    do: raise("Oops, couldn't send email to #{email}!")
 
-  @doc """
-  Hello world.
+  def send_email(email) do
+    Process.sleep(3000)
+    IO.puts("Email to #{email} sent")
+    {:ok, "email_sent"}
+  end
 
-  ## Examples
-
-      iex> Sender.hello()
-      :world
-
-  """
-  def hello do
-    :world
+  def notify_all(emails) do
+    Sender.EmailTaskSupervisor
+    |> Task.Supervisor.async_stream_nolink(emails, &send_email/1)
+    |> Enum.to_list()
   end
 end
