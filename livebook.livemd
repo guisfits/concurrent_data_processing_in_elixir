@@ -1,0 +1,236 @@
+<!-- livebook:{"persist_outputs":true} -->
+
+# Concurrent Data Processing in Elixir
+
+## 01. Easy Concurrency with the Task Module
+
+```elixir
+emails = [
+  "guisfits@gmail.com",
+  "xubenfica@gmail.com",
+  "roseli_vieira@hotmail.com",
+  "gilvan.costa@gmail.com"
+]
+
+email = "guisfits@gmail.com"
+:ok
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+defmodule SendEmail do
+  def call(email) do
+    Process.sleep(3000)
+    IO.puts("Email to #{email} sent")
+    {:ok, "email_sent"}
+  end
+
+  def timeout_call(email) do
+    Process.sleep(10_000)
+    IO.puts("Email to #{email} sent")
+    {:ok, "email_sent"}
+  end
+end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:module, SendEmail, <<70, 79, 82, 49, 0, 0, 9, ...>>, {:timeout_call, 1}}
+```
+
+Calling the previous function you can see that is syncronous (you have to wait the previous call finish to do the next). And this is not good for performance.
+
+```elixir
+Enum.each(emails, &SendEmail.call/1)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+Email to xubenfica@gmail.com sent
+Email to roseli_vieira@hotmail.com sent
+Email to gilvan.costa@gmail.com sent
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Using the `Task` Module, thanks to the BEAM, is possible to create an async process and run it in parallel.
+
+Now we can see that we get all the results at the same time. This happened because Elixir created a new detached process for each one of these e-mails, and processed all in parallel. This took 3 secs to process the same 4 e-mails
+
+```elixir
+Enum.each(emails, fn email ->
+  Task.start(fn -> SendEmail.call(email) end)
+end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+Notice that we get the `:ok` before the e-mail confirmation on the console. This happened because we don't waited for the result, we just triggered and returned. This is known as _fire and forget_ apporach.
+
+```elixir
+Task.async(fn -> SendEmail.call(email) end)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%Task{
+  mfa: {:erlang, :apply, 2},
+  owner: #PID<0.144.0>,
+  pid: #PID<0.802.0>,
+  ref: #Reference<0.595804607.637599745.35537>
+}
+```
+
+With `Task.async`, you can get the Task metadata, but it will not wait for the result. For that, you have to use `Task.await`
+
+```elixir
+Task.async(fn -> SendEmail.call(email) end) |> Task.await()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+Email to xubenfica@gmail.com sent
+Email to roseli_vieira@hotmail.com sent
+Email to gilvan.costa@gmail.com sent
+Email to guisfits@gmail.com sent
+Email to guisfits@gmail.com sent
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:ok, "email_sent"}
+```
+
+Another useful function is `Task.yield`. Compared with `Task.await` which thrown a error is the timeout is reached, `yield` just returns `nil`.    
+In practice, if the function is not executed before the timeout, `await` will not let the code continue, with the `yield` you can retry many times you want.
+
+```elixir
+Task.async(fn -> SendEmail.call(email) end) |> Task.await(1_000)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+```
+
+```elixir
+Task.async(fn -> SendEmail.call(email) end) |> Task.yield(1_000)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+nil
+```
+
+To process a bunch of data, we can use `Enum.map/1`
+
+```elixir
+emails
+|> Enum.map(fn email ->
+  Task.async(fn ->
+    SendEmail.call(email)
+  end)
+end)
+|> Enum.map(&Task.await/1)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+Email to guisfits@gmail.com sent
+Email to xubenfica@gmail.com sent
+Email to roseli_vieira@hotmail.com sent
+Email to gilvan.costa@gmail.com sent
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[ok: "email_sent", ok: "email_sent", ok: "email_sent", ok: "email_sent"]
+```
+
+A different approach is to use `Task.async_stream`. This function works as a `Stream` API in Elixir. It will output a series of values and process them one by one. It's useful when you have a lot of data and don't want to wait to retrieve it all to start processing, `async_stream` allows you to process it individually once you get it.
+
+```elixir
+emails
+|> Task.async_stream(&SendEmail.call/1)
+|> Enum.to_list()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+Email to xubenfica@gmail.com sent
+Email to roseli_vieira@hotmail.com sent
+Email to gilvan.costa@gmail.com sent
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}]
+```
+
+As you can see, the output is similar to the one from the `Task.async/2` example. However, depending on how many logical cores your machine has, the time it takes for the function to complete may be different - `async_stream/3` maintains a limit on how many processes can be running at the same time. By default, this limit is set to the number of logical cores available in the system. Although, you can control that using option `max_concurrency`.
+
+Another usecase for `max_concurrency`: Imagine that you have to do a API call for each process and you have hundreds of items, you'll requests all them together 🔥😵. 
+To avoid that, use the `max_concurreny` to control the throughput.
+
+```elixir
+emails
+|> Task.async_stream(&SendEmail.call/1, max_concurrency: 2)
+|> Enum.to_list()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+Email to guisfits@gmail.com sent
+Email to xubenfica@gmail.com sent
+Email to roseli_vieira@hotmail.com sent
+Email to gilvan.costa@gmail.com sent
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}, ok: {:ok, "email_sent"}]
+```
+
+Something to be aware of: if any of these processes have an error, as they are linked, the main process will also be affected. To avoid this, use `on_timeout: :brutal_kill` to simply discard the problematic ones.
+
+```elixir
+emails
+|> Task.async_stream(&SendEmail.timeout_call/1, on_timeout: :brutal_kill)
+|> Enum.to_list()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[exit: :timeout, exit: :timeout, exit: :timeout, exit: :timeout]
+```
