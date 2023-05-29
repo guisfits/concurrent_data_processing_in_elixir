@@ -40,7 +40,7 @@ defmodule Jobber.Job do
       Process.send_after(self(), :retry, 5000)
       {:noreply, new_state}
     else
-      Logger.info("Job exiting #{inspect(state.id)}")
+      Logger.info("Job exiting #{state.id}")
       {:stop, :normal, new_state}
     end
   end
@@ -52,21 +52,21 @@ defmodule Jobber.Job do
   # * Helpers
 
   defp random_job_id() do
-    :crypto.strong_rand_bytes(5) |> Base.url_decode64(padding: false)
+    :crypto.strong_rand_bytes(5) |> Base.url_encode64(padding: false)
   end
 
   defp handle_job_result({:ok, _}, state) do
-    Logger.info("Job completed #{inspect(state.id)}")
+    Logger.info("Job completed #{state.id}")
     %__MODULE__{state | status: "done"}
   end
 
   defp handle_job_result(:error, %{status: "new"} = state) do
-    Logger.warn("Job errored #{inspect(state.id)}")
+    Logger.warn("Job errored #{state.id}")
     %__MODULE__{state | status: "errored"}
   end
 
   defp handle_job_result(:error, %{status: "errored"} = state) do
-    Logger.warn("Job retry failed #{inspect(state.id)}")
+    Logger.warn("Job retry failed #{state.id}")
     new_state = %__MODULE__{state | retries: state.retries + 1}
 
     if new_state.retries == state.max_retries,
