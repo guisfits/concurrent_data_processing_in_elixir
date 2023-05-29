@@ -5,8 +5,14 @@ defmodule Jobber.Application do
 
   @impl true
   def start(_type, _args) do
+    job_runner_args = [
+      strategy: :one_for_one,
+      name: Jobber.JobRunner,
+      max_seconds: 30
+    ]
+
     children = [
-      # {Jobber.Worker, arg}
+      {DynamicSupervisor, job_runner_args}
     ]
 
     opts = [strategy: :one_for_one, name: Jobber.Supervisor]

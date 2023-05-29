@@ -1,5 +1,5 @@
 defmodule Jobber.Job do
-  use GenServer
+  use GenServer, restart: :transient
 
   require Logger
 
