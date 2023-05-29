@@ -8,14 +8,24 @@ defmodule Jobber.Job do
   # * Public API
 
   def start_link(args) do
-    GenServer.start_link(__MODULE__, args)
+    args =
+      if Keyword.has_key?(args, :id) do
+        args
+      else
+        Keyword.put(args, :id, random_job_id())
+      end
+
+    id = Keyword.get(args, :id)
+    type = Keyword.get(args, :type)
+
+    GenServer.start_link(__MODULE__, args, name: via(id, type))
   end
 
   # * GenServer Callbacks
 
   def init(args) do
     work = Keyword.fetch!(args, :work)
-    id = Keyword.get(args, :id, random_job_id())
+    id = Keyword.get(args, :id)
     max_retries = Keyword.get(args, :max_retries, 3)
 
     state = %__MODULE__{work: work, id: id, max_retries: max_retries}
@@ -62,5 +72,9 @@ defmodule Jobber.Job do
     if new_state.retries == state.max_retries,
       do: %__MODULE__{new_state | status: "failed"},
       else: new_state
+  end
+
+  defp via(key, value) do
+    {:via, Registry, {Jobber.JobRegistry, key, value}}
   end
 end

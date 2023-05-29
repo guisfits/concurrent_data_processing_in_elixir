@@ -3,6 +3,11 @@ good_job = fn ->
   {:ok, []}
 end
 
+long_job = fn ->
+  Process.sleep(60_000)
+  {:ok, []}
+end
+
 bad_job = fn ->
   Process.sleep(3000)
   :error
