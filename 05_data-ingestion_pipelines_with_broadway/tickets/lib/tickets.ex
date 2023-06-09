@@ -12,6 +12,11 @@ defmodule Tickets do
     Process.sleep(Enum.random(250..1000))
   end
 
+  def insert_all_tickets(messages) do
+    Process.sleep(Enum.count(messages) * 250)
+    messages
+  end
+
   def send_email(_user) do
     Process.sleep(Enum.random(100..250))
   end
