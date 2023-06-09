@@ -5,9 +5,7 @@ defmodule Scraper.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      PageProducer,
-      PageConsumerSupervisor,
-      OnlinePageProducerConsumer
+      ScrapingPipeline
     ]
 
     opts = [strategy: :one_for_one, name: Scraper.Supervisor]
