@@ -6,15 +6,15 @@ defmodule BookingsPipeline do
   @producer_config [
     queue: "bookings_queue",
     declare: [durable: true],
-    on_failure: :reject_and_requeue
+    on_failure: :reject_and_requeue,
+    qos: [prefetch_count: 100]
   ]
 
   def start_link(_args) do
     options = [
       name: BookingsPipeline,
       producer: [
-        module: {@producer, @producer_config},
-        # concurrency: 1
+        module: {@producer, @producer_config}
       ],
       processors: [
         default: [
@@ -22,9 +22,9 @@ defmodule BookingsPipeline do
         ]
       ],
       batchers: [
-        cinema: [],
-        musical: [],
-        default: []
+        cinema: [batch_size: 75],
+        musical: [], # defaults of 100
+        default: [batch_size: 50]
       ]
     ]
 
@@ -52,19 +52,6 @@ defmodule BookingsPipeline do
     end)
   end
 
-  # def handle_message(_processor, message, _context) do
-  #   %{data: %{event: event, user: user}} = message
-
-  #   if Tickets.tickets_available?(event) do
-  #     Tickets.create_ticket(user, event)
-  #     Tickets.send_email(user)
-
-  #     message
-  #   else
-  #     Broadway.Message.failed(message, "bookings-closed")
-  #   end
-  # end
-
   def handle_message(_processor, message, _context) do
     if Tickets.tickets_available?(message.data.event) do
       case message do
@@ -82,14 +69,15 @@ defmodule BookingsPipeline do
     end
   end
 
-  # def handle_batch(:cinema, messages, batch_info, _context) do
   def handle_batch(_batcher, messages, batch_info, _context) do
     IO.puts("#{inspect(self())} Batch #{batch_info.batcher} #{batch_info.batch_key}")
 
     messages
     |> Tickets.insert_all_tickets()
-    |> Enum.each(fn %{data: %{user: user}} ->
-      Tickets.send_email(user)
+    |> Enum.each(fn message ->
+      channel = message.metadata.amqp_channel
+      payload = "email,#{message.data.user.email}"
+      AMQP.Basic.publish(channel, "", "notifications_queue", payload)
     end)
 
     messages
